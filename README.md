@@ -145,12 +145,39 @@ Every check maps to a concrete method — not vague advice. Boots keyless on fre
 
 ## Install
 
+`install.sh` is a **bash** script. It installs the skill to `~/.claude/skills/solana-risk-compliance/`.
+
+**macOS / Linux:**
 ```bash
 git clone https://github.com/storm-beyndtech/solana-risk-compliance-skill
 cd solana-risk-compliance-skill
-./install.sh          # interactive → ~/.claude/skills/
-./install.sh -y       # non-interactive, defaults
+./install.sh          # interactive   (./install.sh -y for non-interactive)
 ```
+
+**Windows** — run it from **Git Bash** or **WSL** (it won't run in PowerShell or cmd):
+```bash
+git clone https://github.com/storm-beyndtech/solana-risk-compliance-skill
+cd solana-risk-compliance-skill
+bash install.sh
+```
+
+Then **restart Claude Code** (or `/reload`) so it picks up the skill — it becomes invocable
+as `/solana-risk-compliance`, or just ask naturally ("screen this token: \<mint\>").
+
+<details>
+<summary><b>Manual install</b> (no script — any OS)</summary>
+
+Copy the repo into a skill folder and put `SKILL.md` at its root (Claude Code discovers a
+skill by a `SKILL.md` at the folder root):
+
+```bash
+DEST="$HOME/.claude/skills/solana-risk-compliance"
+mkdir -p "$DEST/skill"
+cp skill/SKILL.md "$DEST/SKILL.md"                       # entry at root
+cp skill/*.md "$DEST/skill/" && rm "$DEST/skill/SKILL.md"  # sub-skills under skill/
+cp -R agents commands rules README.md EXAMPLES.md LICENSE "$DEST/"
+```
+</details>
 
 Self-contained — no API key required to start. For autonomous agents, the data layer runs
 **keyless** via QuickNode x402 (the agent self-funds per call).
