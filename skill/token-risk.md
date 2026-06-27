@@ -60,7 +60,10 @@ from the transaction graph and market data (`onchain-data-layer.md` §3, §5).
    high symmetry + few unique counterparties = wash.
 10. **Sell-side friction (honeypot)** — can a normal holder actually sell? Authority-
     based blocks, default-frozen accounts, or a transfer hook that reverts on sale are
-    honeypot tells. Where possible, confirm by simulating/observing a real sell path.
+    honeypot tells. **Confirm with a simulated sell** (`simulateTransaction` of a tiny
+    token→SOL swap from a real holder — no signing/funds; see `onchain-data-layer.md` §3
+    "Sellability / honeypot probe"). A passing sim only proves *current* state — if the
+    deployer still holds an authority that can flip it, flag `sellable now, but mutable`.
 
 ## The nine-pattern checklist (apply all, each labeled with confidence)
 

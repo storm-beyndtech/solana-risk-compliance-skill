@@ -90,6 +90,34 @@ and deployer reputation, then present results with the same calibrated, evidence
 discipline. Absence of the API never blocks the skill — it falls back to the
 first-principles checks in each sub-skill.
 
+## Known limits & when to escalate
+
+A skill that knows its own edges is more trustworthy than one that pretends to be
+complete. State these limits when they apply, and escalate rather than guess:
+
+- **On-chain only — no identity.** This skill reasons from chain data. Clustering shows
+  *likely common control*, never a real-world identity. Attributing a wallet to a named
+  person/entity needs off-chain evidence (handles, KYC, domains, subpoenas) and is out of
+  scope — say "consistent with X," not "is X."
+- **LP-lock is per-AMM and easy to misread.** Burned vs locked vs a lock that *expires in
+  3 days* are different facts; concentrated-liquidity AMMs (Orca/Meteora) have no fungible
+  LP token. Resolve the specific mechanism (`onchain-data-layer.md` §3) before calling LP
+  "safe"; if you can't, it's `unknown`.
+- **Static config ≠ behavior.** A token can pass every authority/extension check and still
+  be a honeypot via a transfer hook or a pending authority. Confirm sellability with a
+  **simulated sell**, not just static reads — and flag *mutable* capabilities even when
+  current behavior is clean.
+- **History may be pruned.** Pre-incident state often isn't on a default RPC; reconstruct
+  from transaction history or use an archival provider, and mark gaps `unknown (pruned)`.
+- **Holder enumeration may be partial** on very large tokens — label depth (`top-N, X% of
+  supply`) instead of overclaiming "well distributed."
+- **Regulatory output is triage, not counsel.** It surfaces obligations and routes to the
+  right regime; a licensed professional makes the determination.
+
+When a case turns on something in this list that you cannot resolve, **report the gap as a
+finding and recommend the specific escalation** (archival data, a sell-simulation, manual
+hook review, legal counsel) — never fill it with an optimistic default.
+
 ## Output shape
 
 Unless the user asks otherwise, structure any risk or compliance assessment as:

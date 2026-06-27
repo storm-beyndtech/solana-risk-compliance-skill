@@ -72,15 +72,36 @@ Naive tools read `getTokenLargestAccounts` (top-20 **token accounts**) — which
 
 Fallbacks: no DAS key → `getTokenLargestAccounts` gives the top-20 token accounts only → mark `HolderDistribution = partial`; never report "well distributed" from a sample. (`getProgramAccounts` on the token program with a mint filter also enumerates accounts but is heavier.)
 
+**At scale — when full enumeration is infeasible.** A token with hundreds of thousands of holders is hundreds of paginated DAS calls (1000/page), which rate-limits and costs real time/credits. Concentration risk lives in the **top of the distribution**, so:
+- For a **risk screen**, you rarely need every dust holder — page until the running total covers the supply that matters (e.g. top owners summing to >90%, or the first few pages), then stop. The shadow-whale you're hunting is in the top ranks, not the tail.
+- For a **legal/forensic holder count** (e.g. a securities "number of holders" question) where the tail matters, use an **aggregate provider** (Birdeye / Vybe / Solana Tracker holder stats) for the count and reserve full enumeration for the addresses you'll actually act on.
+- Either way, record **how deep you paged**: `HolderDistribution = full` vs `partial(top-N, X% of supply covered)`. A "top 50 holders" read is a legitimate, honest answer — just labeled as what it is.
+
 ---
 
 ## 3. Liquidity & market — is the liquidity real, and pullable? (patterns 3, 7)
 
 Liquidity authenticity is part on-chain (the pool + LP token custody) and part market data.
 
-- **Pools / LP custody:** identify the AMM pool (Raydium, Orca Whirlpools, Meteora), the LP mint, and **who holds the LP tokens** — burned (to incinerator), locked (in a known locker PDA, with an unlock time), or held by the deployer (pullable → classic rug). Read via `getAccountInfo`/`getProgramAccounts` on the pool program, or a market API for the convenience layer.
+- **Pools / LP custody:** identify the AMM pool, the LP representation, and **who controls it**. The mechanics differ per AMM — resolve the right one:
+  - **Raydium (AMM v4 / CPMM):** fungible LP token. Legit projects **burn** it — check the LP mint: supply largely at the incinerator `1nc1nerator11111111111111111111111111111111` (or `supply == 0`) ⇒ burned/permanent. LP held in the **deployer** wallet ⇒ pullable (classic rug). LP in a **locker** ⇒ resolve the locker (below) for the unlock time.
+  - **Orca Whirlpools & Meteora DLMM (concentrated liquidity):** there is no fungible LP token — liquidity is a **position (NFT/position account)**. "Locked" means *who owns the position* and whether the deployer can `decreaseLiquidity`/`closePosition`. Deployer-held positions = pullable regardless of TVL. Also check the **range**: out-of-range or one-sided liquidity is decorative, not real exit depth. Meteora also exposes dedicated lock escrows — resolve them.
+  - **pump.fun / launchpads:** pre-graduation = bonding curve, **no DEX LP** (a different signal, not "unlocked"). At graduation the protocol seeds and typically burns/locks the pool by design — verify the resulting pool rather than assuming.
+  - **Third-party lockers — a lock with an unlock date is not a lock:** Streamflow, **Jupiter Lock**, Team Finance hold LP/positions in an escrow with an **unlock timestamp**. Resolve the escrow account → read the unlock time. "Locked for 3 days" on a fresh launch is a trapdoor with a timer; surface the actual date, not just "locked: true."
 - **Market context (free, no key):** [DexScreener](https://docs.dexscreener.com), [GeckoTerminal](https://www.geckoterminal.com/dex-api), Birdeye, Solana Tracker — price, liquidity USD, 24h volume, **buys/sells counts**, pair age, number of markets. Use **two** independent sources for anything you weight heavily.
-- **Three states, never conflated:** LP **locked/burned** (commitment) · LP **unlocked & deployer-held** (trapdoor) · **no DEX LP yet** (bonding-curve / pre-graduation — *unconfirmed*, cap don't clear). Treat "couldn't resolve the AMM" as `LPStatus = unknown`, not "locked."
+- **Three states, never conflated:** LP **locked/burned** (commitment — and check the lock's *expiry*) · LP **unlocked & deployer-held** (trapdoor) · **no DEX LP yet** (bonding-curve / pre-graduation — *unconfirmed*, cap don't clear). Treat "couldn't resolve the AMM" as `LPStatus = unknown`, not "locked."
+
+**Sellability / honeypot probe — the most reliable single test.** Static reads (freeze authority, transfer hook, transfer fee) tell you a honeypot is *possible*; a **simulated sell** tells you it's *real*. Build a swap of a tiny amount token→SOL along a live route (e.g. a Jupiter quote+swap) **from an address that actually holds the token**, and `simulateTransaction` it — no signing, no funds moved:
+
+```ts
+// replaceRecentBlockhash + sigVerify:false → simulate without a signature or lamports.
+const sim = await rpc.simulateTransaction(sellTx, {
+  sigVerify: false, replaceRecentBlockhash: true, encoding: "base64",
+}).send();
+// sim.value.err !== null  → the sell path FAILS → likely honeypot / non-sellable.
+// Inspect sim.value.logs for the failing program (transfer-hook revert, freeze, 100% fee, blacklist).
+```
+This catches what static config misses: a transfer-hook program that reverts on sells, a freeze applied to the seller, a blacklist, or a confiscatory fee — none of which a `getAccountInfo` read reveals on its own. **Caveat:** a simulation reflects *current* state; if the deployer still holds an authority that can flip behavior later (mint, freeze, hook authority, mutable fee), report sellability as `confirmed now, but mutable` and weight the standing capability — see §1/§4.
 
 **Wash / churn computation** (pattern 7), from market data:
 ```
@@ -153,7 +174,18 @@ Concrete sources (free first, then commercial):
 
 ---
 
-## 6. Independent verification (investigations)
+## 6. Historical / point-in-time state (investigations)
+
+Investigations need state **as it was at the incident**, not as it is now — what the authorities were before the rug, who held the LP an hour before the drain. Two hard truths:
+
+- **Default RPC prunes.** `getTransaction` on an old signature and `getBlock` on an old slot frequently return *not found* on standard endpoints — the node only retains a recent window. "Node doesn't have that slot" is the single most common wall in real forensics. For anything beyond the retention window you need an **archival** RPC (Helius archival, Triton, QuickNode archive) or a historical dataset provider.
+- **Reconstruct from transactions, don't rely on point-in-time snapshots.** Historical *account state* at slot N is expensive/unavailable; historical *transactions* are durable. Prefer to rebuild the timeline from the event history — "mint authority was `X` until tx `Y` at slot `Z` revoked it" — by walking `getSignaturesForAddress` on the mint/authority and reading the instructions that changed state. The tx that *changed* a fact is more findable, and more probative, than a snapshot of the fact.
+
+Mark anything you could not retrieve from history as `unknown (pruned)` — not as "unchanged."
+
+---
+
+## 7. Independent verification (investigations)
 
 Never build a theory on one source. Cross-confirm anchor facts on an explorer — [Solscan](https://solscan.io), [Solana Explorer](https://explorer.solana.com), [SolanaFM](https://solana.fm) — slots, timestamps, amounts, program IDs. If a claimed fact doesn't verify on a second source, that discrepancy is itself a finding.
 
@@ -168,9 +200,11 @@ Never build a theory on one source. Cross-confirm anchor facts on an explorer �
 | Real holder owner-graph | Helius DAS `getTokenAccounts` (paginate→owners) | token-risk |
 | Top-20 fallback | `getTokenLargestAccounts` | token-risk (partial) |
 | Liquidity, volume, buys/sells, pair age | DexScreener + GeckoTerminal (free) | token-risk |
-| LP custody / lock | pool program accounts / market API | token-risk |
+| LP custody / lock (per-AMM) | pool/locker program accounts; incinerator + Jupiter Lock/Streamflow escrows | token-risk |
+| Can it actually be sold (honeypot) | `simulateTransaction` of a tiny Jupiter sell | token-risk |
 | Funding lineage, clustering, fund flow | `getSignaturesForAddress` + `getTransaction` | wallet, investigation |
 | Live monitoring | Yellowstone gRPC (Geyser) | investigation |
+| Point-in-time / pre-incident state | archival RPC; reconstruct from tx history | investigation |
 | Sanctions / infra labels | OFAC SDN + entity registries | wallet, regulatory |
 | Anchor verification | Solscan / Explorer / SolanaFM | investigation |
 | Keyless agent access | QuickNode x402 (`@quicknode/x402-solana`) | all (autonomous) |
