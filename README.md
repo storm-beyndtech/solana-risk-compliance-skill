@@ -145,20 +145,21 @@ Every check maps to a concrete method — not vague advice. Boots keyless on fre
 
 ## Install
 
-`install.sh` is a **bash** script. It installs the skill to `~/.claude/skills/solana-risk-compliance/`.
+Installs the skill to `~/.claude/skills/solana-risk-compliance/`. Cross-platform —
+`install.sh` (bash) for macOS/Linux, `install.ps1` (PowerShell) for Windows.
 
-**macOS / Linux:**
+**macOS / Linux** (`install.sh` is a bash script):
 ```bash
 git clone https://github.com/storm-beyndtech/solana-risk-compliance-skill
 cd solana-risk-compliance-skill
 ./install.sh          # interactive   (./install.sh -y for non-interactive)
 ```
 
-**Windows** — run it from **Git Bash** or **WSL** (it won't run in PowerShell or cmd):
-```bash
+**Windows** (PowerShell — no Git Bash/WSL needed):
+```powershell
 git clone https://github.com/storm-beyndtech/solana-risk-compliance-skill
 cd solana-risk-compliance-skill
-bash install.sh
+pwsh ./install.ps1    # or right-click install.ps1 > Run with PowerShell
 ```
 
 Then **restart Claude Code** (or `/reload`) so it picks up the skill — it becomes invocable
@@ -226,7 +227,7 @@ solana-risk-compliance-skill/
 ├── commands/      /screen-token · /screen-wallet · /compliance-review · /investigate
 ├── rules/         human-in-the-loop · calibrated-language   (always applied)
 ├── EXAMPLES.md    real keyless mainnet runs (BONK · USDC · PYUSD)
-├── install.sh     installer (defaults / -y)
+├── install.sh / install.ps1   installers (bash · PowerShell)
 ├── CLAUDE.md      agent configuration
 └── LICENSE        MIT
 ```
