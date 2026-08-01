@@ -227,7 +227,7 @@ solana-risk-compliance-skill/
 ├── commands/      /screen-token · /screen-wallet · /compliance-review · /investigate
 ├── rules/         human-in-the-loop · calibrated-language   (always applied)
 ├── EXAMPLES.md    real keyless mainnet runs (BONK · USDC · PYUSD)
-├── install.sh / install.ps1   installers (bash · PowerShell)
+├── install.sh     installer (defaults / -y)
 ├── CLAUDE.md      agent configuration
 └── LICENSE        MIT
 ```

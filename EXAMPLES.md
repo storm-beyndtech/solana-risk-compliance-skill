@@ -148,6 +148,64 @@ Action: do not trust / do not list / do not route. (Auto-refuse is safe; a human
 
 ---
 
+## Example 5 — Deployer self-trade extraction: what a graduation-rate check misses (labeled illustrative composite, real methodology)
+
+Like Example 4, this is a **labeled illustrative composite** — not accusing any named
+live project — but the mechanism, numbers, and query shape are real and reproducible
+against Dune (`onchain-data-layer.md` §5); the specific wallet is withheld here per
+`rules/human-in-the-loop.md` and published separately, with attribution, once a human
+signed off on it.
+
+**The setup:** a high-volume deployer (thousands of pump.fun mints, sub-1% graduation
+rate) reads on every existing aggregate as harmless spam — zero honeypots, zero unlocked
+LP, 0% "rugged" on a third-party cohort metric. A naive read stops there: low
+graduation rate + no honeypot flags = spam bot, not a rugger.
+
+**Step 1 (scope as an operator, not one token) + step 2 (verify, don't trust the
+cache):** one graduated token was pulled for a first look and showed real signal — high
+trade volume, a concentrated top holder, a sharp price drawdown, and the token had gone
+completely silent hours ago (checked live against Dune's trade tape — the platform's own
+cached "0% rugged" cohort stat was a day stale and never caught up to this specific
+crash). Generalizing from that one token would have been the failure mode step 1 warns
+about, so the check was widened to **all** of the operator's recent graduated mints.
+
+**Step 3 (comparative baseline) — catches an overclaim:** every graduated mint showed
+sell volume exceeding buy volume, some heavily. Read in isolation this looked like
+proof of systematic extraction. A control group of 30 unrelated, arbitrary graduated
+mints was pulled and showed the *same* range — from zero sells up to a 9x sell/buy skew
+on tokens with no connection to this operator. Sell-dominant volume over a token's life
+is normal pump.fun decay, not a distinguishing signal. **The volume-skew claim was
+wrong and was retracted before being written up as a finding.**
+
+**Step 4 (who controlled it — self-trade check) — the actual mechanism:** pulling the
+deployer's own trades against its own mints (not just aggregate volume) showed something
+the volume metric couldn't: on every graduated mint checked, the deployer bought a fixed
+token amount in the same second as mint creation, then sold that exact amount back
+across several transactions within 6–13 seconds, for more than it paid, every time.
+Confirmed identical (own fixed signature amount, own timing band) across 17 of 17
+mints checked for this operator, and separately confirmed as the same mechanism — a
+different fixed signature — on a second, previously-published "spam bot" specimen (17/17
+and 19/20 respectively). One instance would be a lucky early buyer; the same amount and
+timing window repeating on every launch is a script.
+
+```
+Verdict: the "spam, not a rugger" read was incomplete — CRITICAL self-dealing mechanism
+  (high confidence), not confirmed by any existing aggregate
+Confirmed: deployer buys a fixed token amount at T+0s on every launch, exits the full
+  amount within 6–13s, profits every time; repeats identically across the tested sample.
+Retracted: raw sell>buy volume skew across the graduated cohort — falsified by a
+  comparative baseline against unrelated tokens; not included in the finding.
+Why every existing check missed it: not a honeypot (anyone can trade), not an
+  LP-pull (pre-AMM bonding-curve token supply), not caught by graduation-rate or
+  cohort-rug-% scoring (both are keyed to the token's eventual OUTCOME; this extraction
+  is complete before the outcome is decided).
+Next: name the pattern as a first-class signal (self-buy-then-exit within N seconds of
+  the deployer's own mint, repeated across ≥3 deployments) rather than folding it into
+  existing honeypot/LP-pull/graduation-rate checks, none of which are shaped to catch it.
+```
+
+---
+
 ## What these examples prove
 
 1. **It runs keyless on real data.** Mint authorities, Token-2022 extensions, and market
@@ -162,5 +220,11 @@ Action: do not trust / do not list / do not route. (Auto-refuse is safe; a human
 4. **The optional engine only amplifies.** A RugBurn-compatible API would add calibrated
    behavioral scores, deployer-cohort reputation, and live invalidation — but every
    verdict above was reached without it.
+5. **A pattern claim needs a control group, and self-trading needs its own check.**
+   Example 5 shows the method catching its own overclaim (volume skew, falsified by a
+   comparative baseline) while surfacing the finding that actually held up (a self-trade
+   script invisible to every outcome-keyed metric) — the discipline in
+   `investigation.md` §3–4 exists because both mistakes are easy to make from a single
+   compelling specimen.
 
 Re-run any command to verify. Evidence over assertion, on real chain state.

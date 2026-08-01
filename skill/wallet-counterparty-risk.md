@@ -42,6 +42,16 @@ Build a picture from on-chain facts, then label confidence.
    abandoned-token deployers, scam-linked addresses, or a single consolidation wallet
    are telling. Note where outflows hit a CEX deposit address — the on-chain trail
    typically ends there.
+7. **Self-trading on its own deployments.** If this wallet is a token deployer, check
+   whether it also appears as a *buyer or seller* of the tokens it deploys — not just
+   the mint/authority actions. A deployer that buys its own token immediately at launch
+   and fully exits within seconds-to-minutes (tokens bought ≈ tokens sold) is extracting
+   from its own launch's early price action, regardless of whether the token later dies
+   or thrives — and this is invisible to LP-lock checks, honeypot simulation, and any
+   score keyed to the token's eventual outcome. One instance can be a whale who got in
+   early; the same fixed amount and timing window repeating identically across several
+   of the deployer's own launches is a script, not a coincidence — check a handful of
+   its other deployments before calling it a pattern.
 
 ## Producing a verdict
 
